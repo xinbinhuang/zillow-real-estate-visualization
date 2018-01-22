@@ -11,8 +11,9 @@ library(shiny)
 library(ggplot2)
 library(dplyr)
 library(readr)
-library(plotly)
-library(leaflet)
+
+
+state_ts <- read_csv("data/clean_state.csv")
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
@@ -35,20 +36,24 @@ ui <- fluidPage(
                               sep = ",",
                               step = 20000),
                   
+                  uiOutput("stateOutput"),
+                  
+                  checkboxInput("allInput", "Include all states", value = FALSE),
+                  
                   checkboxGroupInput("typeInput", "Home type",
-                                     choices = c("1 bedroom" = "ZHVI_1bedroom", 
-                                                 "2 bedroom" = "ZHVI_2bedroom", 
-                                                 "3 bedroom" = "ZHVI_3bedroom", 
-                                                 "4 bedroom" = "ZHVI_4bedroom", 
-                                                 "5 bedroom or more" = "ZHVI_5BedroomOrMore", 
-                                                 "Condo and co-operatives" = "ZHVI_CondoCoop", 
-                                                 "House" = "ZHVI_SingleFamilyResidence"),
-                                     selected = c("1 bedroom", "2 bedroom", "3 bedroom", "4 bedroom", "5 bedroom or more", "Condo and co-operatives", "House")
+                                     choices = c("1 bedroom" = "1bedroom", 
+                                                 "2 bedroom" = "2bedroom", 
+                                                 "3 bedroom" = "3bedroom", 
+                                                 "4 bedroom" = "4bedroom", 
+                                                 "5 bedroom or more" = "5BedroomOrMore", 
+                                                 "Condo and co-operatives" = "CondoCoop", 
+                                                 "House" = "SingleFamilyResidence"),
+                                     selected = c("1bedroom", "2bedroom",  "CondoCoop", "SingleFamilyResidence")
                   ), 
                   
                   checkboxGroupInput("tierInput", "Tier types",
-                                     choices = c("Top Tier" = "ZHVI_TopTier", "Middle Tier" = "ZHVI_MiddleTier", "Bottom Tier" = "ZHVI_BottomTier"),
-                                     selected = c("Top Tier", "Middle Tier", "Bottom Tier")
+                                     choices = c("Top Tier" = "TopTier", "Middle Tier" = "MiddleTier", "Bottom Tier" = "BottomTier"),
+                                     selected = c("TopTier", "MiddleTier")
                   )
 
                   
@@ -71,44 +76,82 @@ ui <- fluidPage(
 # Define server logic required to draw a histogram
 server <- function(input, output) {
       
+      output$stateOutput <- renderUI({
+            selectInput("stateInput", "State",
+                        sort(unique(state_ts$region)),
+                        selected = c("NewYork", "Michigan", "California", "Ohio", "Texas", "Washington") ,
+                        multiple = TRUE)
+      })  
+      
       filtered <- reactive({
-            state_ts <- read_csv("data/State_time_series.csv")
-            state_ts$Date <- year(state_ts$Date)
-            state_ts <- state_ts %>% select("year" = "Date", everything()) %>% 
-                  filter(year >= input$yearInput[1],
-                         year <= input$yearInput[2]) 
+            if (input$allInput){
+                        state_ts %>% 
+                              filter(year >= input$yearInput[1],
+                                     year <= input$yearInput[2],
+                                     price >= input$priceInput[1],
+                                     price <= input$priceInput[2],
+                                     type %in% c(input$typeInput, input$tierInput))
+            } else {
+                  state_ts %>% 
+                        filter(year >= input$yearInput[1],
+                               year <= input$yearInput[2],
+                               price >= input$priceInput[1],
+                               price <= input$priceInput[2],
+                               region %in% input$stateInput,
+                               type %in% c(input$typeInput, input$tierInput))
+            }
+                                     
       })
       
+      
+      
+      
+      
       plotInput <- reactive({
-            p <- ggplot(filtered(), aes_string( x = input$yearInput, y = input$yInput)) +
-                  geom_point(alpha = input$alphaInput, aes(color = continent)) + 
+            p <- ggplot(filtered(), aes( x = year, y = price, fill = type)) +
+                  geom_col(position = "dodge") +
                   theme_minimal() +
-                  xlab(input$xInput) +
-                  ylab(input$yInput) + 
-                  ggtitle(input$titleInput) +
-                  scale_color_discrete("") +
-                  scale_x_continuous(labels = scales::comma_format()) + 
-                  scale_y_continuous(labels = scales::comma_format()) +
+                  scale_y_continuous(labels = scales::dollar_format()) +
+                  xlab("Year") +
+                  ylab("Price - median estimated home value") +
+                  ggtitle("Zillow's median estimated home value across different year") +
+                  scale_fill_discrete("") +
                   theme(plot.title = element_text(size = 20, hjust = 0.5),
-                        axis.text = element_text(size = 14),
-                        axis.title = element_text(size = 16),
-                        legend.text = element_text(size = 14),
+                        axis.text.y = element_text(size = 12, angle = 45 ),
+                        axis.text.x = element_text(size = 12, angle = 90 ),
+                        axis.title = element_text(size = 14),
+                        legend.text = element_text(size = 10, angle = 30),
                         strip.text = element_text(size = 13))
             
-            if (input$facetInput){
-                  p <- p + facet_wrap(~continent) 
-            }
             
-            if (input$logInput == "1"){
-                  p 
-            } else if (input$logInput == "2"){
-                  (p <- p + scale_x_log10(labels = scales::comma_format()))
-            } else if (input$logInput == "3"){
-                  (p <- p + scale_y_log10(labels = scales::comma_format()))      
-            } else {
-                  (p <- p + scale_x_log10(labels = scales::comma_format()) + scale_y_log10(labels = scales::comma_format()))
-            }
+          
       })
+      
+      output$distPlot <- renderPlot({
+            print(plotInput())
+      })
+      
+      output$data <- DT::renderDataTable({
+            filtered()
+      })
+      
+      output$downloadData <- downloadHandler(
+            filename = "house.csv"
+            ,
+            content = function(file) {
+                  write.csv(filtered(), file, row.names = FALSE)
+            }
+      )
+      
+      output$graph <- downloadHandler(
+            filename = "graph.png"
+            ,
+            content = function(file) {
+                  device <- function(..., width, height) grDevices::png(..., width = width, height = height, res = 150, units = "in")
+                  ggsave(filename = file, plot = plotInput(), device = device)
+            }
+      )
+      
 }
 
 # Run the application 
