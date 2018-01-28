@@ -5,9 +5,9 @@ account: xinbinhuang
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 259280
-bundleId: 1187231
+bundleId: 1196870
 url: https://xinbinhuang.shinyapps.io/house-price-tracker/
-when: 1516637248.92452
+when: 1517176875.04814
 asMultiple: FALSE
 asStatic: FALSE
 ignoredFiles: data/cities_crosswalk.csv|data/City_time_series.csv
