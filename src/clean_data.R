@@ -2,6 +2,7 @@ library(readr)
 library(tidyr)
 library(dplyr)
 library(stringr)
+library(lubridate)
 
 state_ts <- read_csv("../data/State_time_series.csv") 
 # subtract year
