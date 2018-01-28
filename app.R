@@ -20,7 +20,8 @@ ui <- fluidPage(
       titlePanel("Housing price tracker"),
       
       sidebarLayout(
-            sidebarPanel(
+            sidebarPanel("An interactive app to help analyze and visualize the housing market in the U.S.",
+                         br(),
                
                   sliderInput("yearInput", "Years",
                               min = 2000,
@@ -37,10 +38,9 @@ ui <- fluidPage(
                               step = 20000),
                   
                   uiOutput("stateOutput"),
-                  
                   checkboxInput("allInput", "Include all states", value = FALSE),
                   
-                  checkboxGroupInput("typeInput", "Home type",
+                  checkboxGroupInput("typeInput", "Home types",
                                      choices = c("1 bedroom" = "1bedroom", 
                                                  "2 bedroom" = "2bedroom", 
                                                  "3 bedroom" = "3bedroom", 
@@ -49,24 +49,42 @@ ui <- fluidPage(
                                                  "Condo and co-operatives" = "CondoCoop", 
                                                  "House" = "SingleFamilyResidence"),
                                      selected = c("1bedroom", "2bedroom",  "CondoCoop", "SingleFamilyResidence")
-                  ), 
+                  ),         
+                  
                   
                   checkboxGroupInput("tierInput", "Tier types",
                                      choices = c("Top Tier" = "TopTier", "Middle Tier" = "MiddleTier", "Bottom Tier" = "BottomTier"),
                                      selected = c("TopTier", "MiddleTier")
                   )
-
+                  
+                  
                   
             ),
             
             mainPanel(
-                  downloadButton("graph", "Download the plot"),
-                  plotOutput("distPlot"),
-                  br(), 
-                  br(),
-                  downloadButton("downloadData", "Download the data"),
-                  DT::dataTableOutput("data")
+                  tabsetPanel(
+                        tabPanel("Plots", 
+                                 br(),
+                                 
+                                 downloadButton("graphhome", "Download the plot (Home types)"),
+                                 plotOutput("homePlot"),
+                                 br(),
+                                 downloadButton("graphtier", "Download the plot (Tier types)"),
+                                 br(),
+                                 plotOutput("tierPlot")
+                                 
+                                 ),
                   
+                                 
+                   
+            
+                        tabPanel("Data table",
+                                 br(),
+                                 downloadButton("downloadData", "Download the data"),
+                                 br(),
+                                 DT::dataTableOutput("data"))
+                  )
+            
             )
       )
    
@@ -94,41 +112,50 @@ server <- function(input, output, session) {
       
       filtered <- reactive({
             if (input$allInput){
-                        state_ts %>% 
-                              filter(year >= input$yearInput[1],
-                                     year <= input$yearInput[2],
-                                     price >= input$priceInput[1],
-                                     price <= input$priceInput[2],
-                                     type %in% c(input$typeInput, input$tierInput))
+                  state_ts %>% 
+                        filter(year >= input$yearInput[1],
+                               year <= input$yearInput[2],
+                               price >= input$priceInput[1],
+                               price <= input$priceInput[2])
             } else {
                   state_ts %>% 
                         filter(year >= input$yearInput[1],
                                year <= input$yearInput[2],
                                price >= input$priceInput[1],
                                price <= input$priceInput[2],
-                               region %in% input$stateInput,
-                               type %in% c(input$typeInput, input$tierInput))
+                               region %in% input$stateInput)
             }
+            })
+      
+      filteredtype <- reactive({
+            filtered() %>% filter(type %in% input$typeInput)
+            
                                      
       })
       
-     
+      filteredtier <- reactive({
+            filtered() %>% filter(type %in% input$tierInput)
+            
+      })
       
       
       
-      plotInput <- reactive({
-            p <- ggplot(filtered(), aes( x = year, y = price, fill = type)) +
+      plottierInput <- reactive({
+            p <-  
+                  ggplot(filteredtier(), aes( x = year, y = price, fill = type)) +
                   geom_col(position = "dodge") +
                   theme_minimal() +
                   scale_y_continuous(labels = scales::dollar_format()) +
                   xlab("Year") +
                   ylab("Price - median estimated home value") +
-                  ggtitle("Zillow's median estimated home value across different year") +
+                  ggtitle("Zillow's median estimated home value across different year", 
+                          subtitle = "By Tier types") +
                   scale_fill_discrete("") +
                   theme(plot.title = element_text(size = 20, hjust = 0.5),
                         axis.text.y = element_text(size = 12, angle = 45 ),
                         axis.text.x = element_text(size = 12, angle = 90 ),
                         axis.title = element_text(size = 14),
+                        plot.subtitle = element_text(size = 18, hjust = 0.5),
                         legend.text = element_text(size = 10, angle = 30),
                         strip.text = element_text(size = 13))
             
@@ -136,8 +163,35 @@ server <- function(input, output, session) {
           
       })
       
-      output$distPlot <- renderPlot({
-            print(plotInput())
+      plottypeInput <- reactive({
+            p <- 
+                  ggplot(filteredtype(),  aes( x = year, y = price, fill = type)) +
+                  geom_col(position = "dodge") +
+                  theme_minimal() +
+                  scale_y_continuous(labels = scales::dollar_format()) +
+                  xlab("Year") +
+                  ylab("Price - median estimated home value") +
+                  ggtitle("Zillow's median estimated home value across different year",
+                          subtitle = "By Home types") +
+                  scale_fill_discrete("") +
+                  theme(plot.title = element_text(size = 20, hjust = 0.5),
+                        axis.text.y = element_text(size = 12, angle = 45 ),
+                        axis.text.x = element_text(size = 12, angle = 90 ),
+                        axis.title = element_text(size = 14),
+                        plot.subtitle = element_text(size = 18, hjust = 0.5),
+                        legend.text = element_text(size = 10, angle = 30),
+                        strip.text = element_text(size = 13))
+            
+            
+            
+      })
+      
+      output$tierPlot <- renderPlot({
+            print(plottierInput())
+      })
+      
+      output$homePlot <- renderPlot({
+            print(plottypeInput())
       })
       
       output$data <- DT::renderDataTable({
@@ -152,12 +206,21 @@ server <- function(input, output, session) {
             }
       )
       
-      output$graph <- downloadHandler(
+      output$graphtier <- downloadHandler(
             filename = "graph.png"
             ,
             content = function(file) {
                   device <- function(..., width, height) grDevices::png(..., width = width, height = height, res = 150, units = "in")
-                  ggsave(filename = file, plot = plotInput(), device = device)
+                  ggsave(filename = file, plot = plottierInput(), device = device)
+            }
+      )
+      
+      output$graphhome <- downloadHandler(
+            filename = "graph.png"
+            ,
+            content = function(file) {
+                  device <- function(..., width, height) grDevices::png(..., width = width, height = height, res = 150, units = "in")
+                  ggsave(filename = file, plot = plottypeInput(), device = device)
             }
       )
       
