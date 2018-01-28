@@ -74,7 +74,16 @@ ui <- fluidPage(
 )
 
 # Define server logic required to draw a histogram
-server <- function(input, output) {
+server <- function(input, output, session) {
+      observeEvent(
+            input$allInput,
+            updateSelectInput(session,
+                              inputId = "stateInput",
+                              'State',
+                              choices = sort(unique(state_ts$region)),
+                              selected = c(unique(state_ts$region))),
+            ignoreInit = T
+      )
       
       output$stateOutput <- renderUI({
             selectInput("stateInput", "State",
@@ -103,7 +112,7 @@ server <- function(input, output) {
                                      
       })
       
-      
+     
       
       
       
