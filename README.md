@@ -1,5 +1,13 @@
-# House price tracker
+# House price tracker using Zillow real esatate data
 _Author: Xinbin Huang_
+
+Shiny App for real esatate analysis in the USA
+
+|Links|
+| ------------------------------- |
+| [Deployed Shiny App](https://xinbinhuang.shinyapps.io/house-price-tracker/)         |
+| [Shiny App Source Code](https://github.com/xinbinhuang/zillow-real-estate-visualization/blob/master/app.R)      |
+
 
 ## 1. Overview
 
